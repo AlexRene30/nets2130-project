@@ -102,18 +102,118 @@ function Leaderboard({ data }) {
 }
 
 function ActivityMap({ mapPoints }) {
+  // Convert lat/lng to map coordinates (simple equirectangular projection)
+  const latLngToMapCoords = (lat, lng) => {
+    // Latitude: -90 to 90 maps to 0% to 100% (inverted because map starts at top)
+    // Longitude: -180 to 180 maps to 0% to 100%
+    const x = ((lng + 180) / 360) * 100;
+    const y = ((90 - lat) / 180) * 100;
+    return { x, y };
+  };
+
   return (
-    <div className="card">
+    <div className="card map-card">
       <h3>Live Activity Map</h3>
       <p className="small">Mock heatmap of today's global contributions.</p>
       <div className="map">
-        {mapPoints.map((point) => (
-          <div key={point.id} className="map-dot" style={{ left: `${point.lng + 75}%`, top: `${50 - point.lat}%` }}>
-            <span>{point.username}</span>
-            <small>{point.type} · {point.intensity} pts</small>
-          </div>
-        ))}
+        {mapPoints.map((point) => {
+          const coords = latLngToMapCoords(point.lat, point.lng);
+          return (
+            <div 
+              key={point.id} 
+              className="map-dot" 
+              style={{ 
+                left: `${coords.x}%`, 
+                top: `${coords.y}%` 
+              }}
+            >
+              <span>{point.username}</span>
+              <small>{point.type} · {point.intensity} pts</small>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  );
+}
+
+function StreaksAndBadges({ user }) {
+  // Define badge milestones
+  const streakBadges = [
+    { days: 3, name: 'Getting Started', icon: '🔥' },
+    { days: 7, name: 'Week Warrior', icon: '💪' },
+    { days: 14, name: 'Two Week Champion', icon: '⭐' },
+    { days: 30, name: 'Monthly Master', icon: '🏆' },
+    { days: 60, name: 'Dedication Deity', icon: '👑' },
+    { days: 100, name: 'Century Streak', icon: '💯' },
+  ];
+
+  const pointBadges = [
+    { points: 100, name: 'First Hundred', icon: '🎯' },
+    { points: 500, name: 'Point Collector', icon: '📊' },
+    { points: 1000, name: 'Grand Master', icon: '🌟' },
+    { points: 2500, name: 'Elite Achiever', icon: '💎' },
+    { points: 5000, name: 'Legendary', icon: '⚡' },
+  ];
+
+  // Calculate earned badges
+  const earnedStreakBadges = streakBadges.filter((badge) => user.streak >= badge.days);
+  const earnedPointBadges = pointBadges.filter((badge) => user.points >= badge.points);
+
+  // Find next milestone
+  const nextStreakBadge = streakBadges.find((badge) => user.streak < badge.days);
+  const nextPointBadge = pointBadges.find((badge) => user.points < badge.points);
+
+  return (
+    <div className="card">
+      <h3>Streaks & Badges</h3>
+      
+      {/* Current Streak Display */}
+      <div className="streak-display">
+        <div className="streak-number">{user.streak || 0}</div>
+        <div className="streak-label">Day Streak 🔥</div>
+        {nextStreakBadge && (
+          <div className="streak-progress">
+            <small>
+              {nextStreakBadge.days - user.streak} more day{nextStreakBadge.days - user.streak !== 1 ? 's' : ''} until {nextStreakBadge.name} {nextStreakBadge.icon}
+            </small>
+          </div>
+        )}
+      </div>
+
+      {/* Streak Badges */}
+      <section className="badges-section">
+        <h4>Streak Badges</h4>
+        <div className="badges-grid">
+          {streakBadges.map((badge) => {
+            const earned = user.streak >= badge.days;
+            return (
+              <div key={badge.days} className={`badge ${earned ? 'earned' : 'locked'}`}>
+                <div className="badge-icon">{badge.icon}</div>
+                <div className="badge-name">{badge.name}</div>
+                <div className="badge-requirement">{badge.days} days</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Point Badges */}
+      <section className="badges-section">
+        <h4>Point Badges</h4>
+        <div className="badges-grid">
+          {pointBadges.map((badge) => {
+            const earned = user.points >= badge.points;
+            return (
+              <div key={badge.points} className={`badge ${earned ? 'earned' : 'locked'}`}>
+                <div className="badge-icon">{badge.icon}</div>
+                <div className="badge-name">{badge.name}</div>
+                <div className="badge-requirement">{badge.points} pts</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }
@@ -197,6 +297,7 @@ export default function App() {
       </header>
       <section className="grid">
         <ActivityForm user={user} onLogged={handleActivityLogged} />
+        <StreaksAndBadges user={user} />
         <Leaderboard data={leaderboard} />
         <ActivityMap mapPoints={mapPoints} />
       </section>
