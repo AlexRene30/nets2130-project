@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css';
+import StravaConnection from './components/StravaConnection';
+import StravaActivities from './components/StravaActivities';
 
 /**
  * Frontend prototype illustrating Kinnect workflows.
@@ -259,6 +261,26 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [leaderboard, setLeaderboard] = useState({ teamLeaderboard: [], cityLeaderboard: [], individualLeaderboard: [] });
   const [mapPoints, setMapPoints] = useState([]);
+  const [stravaConnected, setStravaConnected] = useState(false);
+
+  // Handle Strava OAuth callback
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const stravaSuccess = urlParams.get('strava_success');
+    const stravaError = urlParams.get('strava_error');
+    const username = urlParams.get('username');
+
+    if (stravaSuccess === 'true' && username) {
+      alert('Successfully connected to Strava!');
+      setStravaConnected(true);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (stravaError) {
+      alert(`Strava connection error: ${decodeURIComponent(stravaError)}`);
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     fetch(`${API_BASE}/leaderboard`).then((res) => res.json()).then(setLeaderboard);
@@ -289,6 +311,10 @@ export default function App() {
       .then((data) => setUser(data.user));
   };
 
+  const handleStravaConnectionChange = () => {
+    setStravaConnected((prev) => !prev);
+  };
+
   return (
     <main className="layout">
       <header>
@@ -297,6 +323,8 @@ export default function App() {
       </header>
       <section className="grid">
         <ActivityForm user={user} onLogged={handleActivityLogged} />
+        <StravaConnection user={user} onConnectionChange={handleStravaConnectionChange} />
+        <StravaActivities user={user} />
         <StreaksAndBadges user={user} />
         <Leaderboard data={leaderboard} />
         <ActivityMap mapPoints={mapPoints} />
