@@ -59,7 +59,7 @@ button {
 }
 
 button {
-  background: #4f46e5;
+  background: #990000; /* Penn Red */
   color: white;
   border: none;
   cursor: pointer;
@@ -68,7 +68,8 @@ button {
 
 button:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(79, 70, 229, 0.25);
+  box-shadow: 0 6px 18px rgba(153, 0, 0, 0.35);
+  background: #b30000; /* Lighter Penn Red on hover */
 }
 
 button:disabled {
@@ -240,4 +241,37 @@ button:disabled {
   font-size: 0.65rem;
   color: #64748b;
   text-align: center;
+}
+
+/* Google Maps Info Window Styles */
+.info-window {
+  padding: 0.5rem;
+  min-width: 200px;
+}
+
+.info-window h4 {
+  margin: 0 0 0.5rem 0;
+  color: #1f2937;
+  font-size: 1.1rem;
+}
+
+.info-window p {
+  margin: 0.25rem 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.info-window strong {
+  color: #1f2937;
+  font-weight: 600;
+}
+
+/* Google Maps Container */
+.map-card .card {
+  overflow: visible;
+}
+
+.map-card {
+  grid-column: 1 / -1;
+  overflow: visible;
 }
