@@ -1,7 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import 'leaflet.heat';
 import './App.css';
 import StravaConnection from './components/StravaConnection';
 import StravaActivities from './components/StravaActivities';
+
+// Fix Leaflet default icon issue
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
 
 /**
  * Frontend prototype illustrating Kinnect workflows.
@@ -103,38 +114,219 @@ function Leaderboard({ data }) {
   );
 }
 
-function ActivityMap({ mapPoints }) {
-  // Convert lat/lng to map coordinates (simple equirectangular projection)
-  const latLngToMapCoords = (lat, lng) => {
-    // Latitude: -90 to 90 maps to 0% to 100% (inverted because map starts at top)
-    // Longitude: -180 to 180 maps to 0% to 100%
-    const x = ((lng + 180) / 360) * 100;
-    const y = ((90 - lat) / 180) * 100;
-    return { x, y };
+function ActivityMap({ mapPoints, teamMembers }) {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const markersRef = useRef([]);
+  const heatLayerRef = useRef(null);
+  const [selectedMember, setSelectedMember] = useState(null);
+  const mapContainerRef = useRef(null);
+
+  // Get status color for marker
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active':
+        return '#10b981'; // green
+      case 'online':
+        return '#3b82f6'; // blue
+      case 'offline':
+        return '#6b7280'; // gray
+      default:
+        return '#6b7280';
+    }
   };
+
+  // Get status icon
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'active':
+        return '🟢';
+      case 'online':
+        return '🔵';
+      case 'offline':
+        return '⚫';
+      default:
+        return '⚫';
+    }
+  };
+
+  // Calculate center from user locations if available, default to Philadelphia/Penn
+  const mapCenter = useMemo(() => {
+    if (teamMembers && teamMembers.length > 0) {
+      const avgLat = teamMembers.reduce((sum, m) => sum + m.lat, 0) / teamMembers.length;
+      const avgLng = teamMembers.reduce((sum, m) => sum + m.lng, 0) / teamMembers.length;
+      return [avgLat, avgLng];
+    }
+    if (mapPoints && mapPoints.length > 0) {
+      const avgLat = mapPoints.reduce((sum, p) => sum + p.lat, 0) / mapPoints.length;
+      const avgLng = mapPoints.reduce((sum, p) => sum + p.lng, 0) / mapPoints.length;
+      return [avgLat, avgLng];
+    }
+    return [39.9526, -75.1652]; // Philadelphia / Penn campus
+  }, [teamMembers, mapPoints]);
+
+  // Initialize map
+  useEffect(() => {
+    if (!mapContainerRef.current || mapInstanceRef.current) return;
+
+    // Create map centered on Philadelphia/Penn - always start with Philadelphia coordinates
+    const initialCenter = [39.9526, -75.1652]; // Philadelphia / Penn campus
+    const initialZoom = 13; // Good zoom level for campus area
+    const map = L.map(mapContainerRef.current).setView(initialCenter, initialZoom);
+    mapInstanceRef.current = map;
+
+    // Add OpenStreetMap tile layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    mapRef.current = map;
+
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, []);
+
+  // Update map center when data changes
+  useEffect(() => {
+    if (mapInstanceRef.current && mapCenter) {
+      mapInstanceRef.current.setView(mapCenter, teamMembers && teamMembers.length > 0 ? 13 : 12);
+    }
+  }, [mapCenter, teamMembers]);
+
+  // Update heatmap layer
+  useEffect(() => {
+    if (!mapInstanceRef.current || !mapPoints || mapPoints.length === 0) return;
+
+    // Remove existing heat layer
+    if (heatLayerRef.current) {
+      mapInstanceRef.current.removeLayer(heatLayerRef.current);
+      heatLayerRef.current = null;
+    }
+
+    // Prepare heatmap data [lat, lng, intensity]
+    const heatData = mapPoints.map(point => {
+      const intensity = Math.min(Math.max((point.intensity || 1) / 100, 0.1), 1.0);
+      return [Number(point.lat), Number(point.lng), intensity];
+    });
+
+    // Add heat layer using leaflet.heat
+    try {
+      // Check if L.heatLayer is available (from leaflet.heat import)
+      if (typeof L !== 'undefined' && typeof L.heatLayer === 'function') {
+        const heatLayer = L.heatLayer(heatData, {
+          radius: 30,
+          blur: 15,
+          maxZoom: 17,
+          max: 1.0,
+          gradient: {
+            0.0: 'blue',
+            0.5: 'cyan',
+            0.7: 'lime',
+            0.85: 'yellow',
+            1.0: 'red'
+          }
+        });
+        heatLayer.addTo(mapInstanceRef.current);
+        heatLayerRef.current = heatLayer;
+      } else {
+        console.warn('Leaflet.heat plugin not loaded - heatmap disabled');
+      }
+    } catch (error) {
+      console.warn('Error creating heat layer:', error);
+    }
+  }, [mapPoints]);
+
+  // Update markers
+  useEffect(() => {
+    if (!mapInstanceRef.current || !teamMembers || teamMembers.length === 0) return;
+
+    // Clear existing markers
+    markersRef.current.forEach(marker => {
+      mapInstanceRef.current.removeLayer(marker);
+    });
+    markersRef.current = [];
+
+    // Add new markers
+    teamMembers.forEach((member) => {
+      const lat = Number(member.lat);
+      const lng = Number(member.lng);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        console.warn(`Invalid coordinates for ${member.username}:`, member);
+        return;
+      }
+
+      const color = getStatusColor(member.status);
+      
+      // Create custom icon
+      const customIcon = L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background-color: ${color};
+          border: 3px solid white;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        "></div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
+      });
+
+      const marker = L.marker([lat, lng], { icon: customIcon })
+        .addTo(mapInstanceRef.current)
+        .bindPopup(`
+          <div class="info-window">
+            <h4>${member.username}</h4>
+            <p><strong>Status:</strong> ${getStatusIcon(member.status)} ${member.status}</p>
+            <p><strong>City:</strong> ${member.city}</p>
+            <p><strong>Points:</strong> ${member.points} pts</p>
+            <p><strong>Streak:</strong> ${member.streak} days 🔥</p>
+            <p><strong>Team:</strong> ${member.teamId}</p>
+          </div>
+        `)
+        .on('click', () => {
+          setSelectedMember(member);
+        });
+
+      markersRef.current.push(marker);
+    });
+  }, [teamMembers]);
 
   return (
     <div className="card map-card">
-      <h3>Live Activity Map</h3>
-      <p className="small">Mock heatmap of today's global contributions.</p>
-      <div className="map">
-        {mapPoints.map((point) => {
-          const coords = latLngToMapCoords(point.lat, point.lng);
-          return (
-            <div 
-              key={point.id} 
-              className="map-dot" 
-              style={{ 
-                left: `${coords.x}%`, 
-                top: `${coords.y}%` 
-              }}
-            >
-              <span>{point.username}</span>
-              <small>{point.type} · {point.intensity} pts</small>
-            </div>
-          );
-        })}
-      </div>
+      <h3>Live Activity Map - Penn Campus</h3>
+      <p className="small">
+        Heat map showing today's activities around Philadelphia & Penn campus. Quaker team members marked with status: 
+        <span style={{ color: '#10b981' }}> 🟢 Active</span>, 
+        <span style={{ color: '#3b82f6' }}> 🔵 Online</span>, 
+        <span style={{ color: '#6b7280' }}> ⚫ Offline</span>
+      </p>
+      <div 
+        ref={mapContainerRef} 
+        style={{ 
+          width: '100%', 
+          height: '500px', 
+          borderRadius: '12px',
+          overflow: 'hidden'
+        }}
+      />
+      {selectedMember && (
+        <div style={{ marginTop: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
+          <h4>{selectedMember.username}</h4>
+          <p><strong>Status:</strong> {getStatusIcon(selectedMember.status)} {selectedMember.status}</p>
+          <p><strong>City:</strong> {selectedMember.city}</p>
+          <p><strong>Points:</strong> {selectedMember.points} pts</p>
+          <p><strong>Streak:</strong> {selectedMember.streak} days 🔥</p>
+          <p><strong>Team:</strong> {selectedMember.teamId}</p>
+          <button onClick={() => setSelectedMember(null)} style={{ marginTop: '0.5rem' }}>Close</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -228,7 +420,7 @@ function Login({ onAuth }) {
     const response = await fetch(`${API_BASE}/${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password, city: 'New York', teamName: 'NYC Hustlers' }),
+      body: JSON.stringify({ username, password, city: 'Philadelphia', teamName: 'Penn Quakers' }),
     });
     const payload = await response.json();
     if (payload.user) {
@@ -240,7 +432,7 @@ function Login({ onAuth }) {
 
   return (
     <div className="card">
-      <h3>Kinnect Login</h3>
+      <h3 style={{ color: '#990000' }}>Kinnect @ Penn Login</h3>
       <label>
         Username
         <input value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -262,6 +454,7 @@ export default function App() {
   const [leaderboard, setLeaderboard] = useState({ teamLeaderboard: [], cityLeaderboard: [], individualLeaderboard: [] });
   const [mapPoints, setMapPoints] = useState([]);
   const [stravaConnected, setStravaConnected] = useState(false);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   // Handle Strava OAuth callback
   useEffect(() => {
@@ -283,13 +476,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user) return;
+    
     fetch(`${API_BASE}/leaderboard`).then((res) => res.json()).then(setLeaderboard);
     fetch(`${API_BASE}/activity-map`).then((res) => res.json()).then((data) => setMapPoints(data.mapPoints));
-  }, []);
+    // Fetch team members for the logged-in user's team
+    fetch(`${API_BASE}/team-members?teamId=${user.teamId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('Team members loaded:', data.members);
+        setTeamMembers(data.members || []);
+      })
+      .catch((error) => {
+        console.error('Error loading team members:', error);
+      });
+  }, [user]);
 
   const refreshData = () => {
+    if (!user) return;
+    
     fetch(`${API_BASE}/leaderboard`).then((res) => res.json()).then(setLeaderboard);
     fetch(`${API_BASE}/activity-map`).then((res) => res.json()).then((data) => setMapPoints(data.mapPoints));
+    // Fetch team members for the logged-in user's team
+    fetch(`${API_BASE}/team-members?teamId=${user.teamId}`)
+      .then((res) => res.json())
+      .then((data) => setTeamMembers(data.members || []));
   };
 
   if (!user) {
@@ -318,8 +529,8 @@ export default function App() {
   return (
     <main className="layout">
       <header>
-        <h1>Kinnect Dashboard</h1>
-        <p>Welcome back, {user.username}! Keep the streak alive.</p>
+        <h1 style={{ color: '#990000' }}>Kinnect @ Penn</h1>
+        <p>Welcome back, {user.username}! Keep the streak alive, Quaker! 🔵🔴</p>
       </header>
       <section className="grid">
         <ActivityForm user={user} onLogged={handleActivityLogged} />
@@ -327,7 +538,7 @@ export default function App() {
         <StravaActivities user={user} />
         <StreaksAndBadges user={user} />
         <Leaderboard data={leaderboard} />
-        <ActivityMap mapPoints={mapPoints} />
+        <ActivityMap mapPoints={mapPoints} teamMembers={teamMembers} />
       </section>
     </main>
   );
