@@ -9,6 +9,7 @@ import LogActivityModal from './components/LogActivityModal';
 import StravaBanner from './components/StravaBanner';
 import StravaActivities from './components/StravaActivities';
 import Profile from './pages/Profile';
+import Leaderboards from './pages/Leaderboards';
 
 // Fix Leaflet default icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -375,6 +376,13 @@ function Login({ onAuth }) {
     const payload = await response.json();
     if (payload.user) {
       onAuth(payload.user);
+      // Ensure the URL is the dashboard after login so the app shows the dashboard by default
+      try {
+        window.history.replaceState({}, document.title, '/');
+      } catch (e) {
+        // fallback
+        window.location.href = '/';
+      }
     } else {
       alert(payload.error || 'Something went wrong');
     }
@@ -382,7 +390,7 @@ function Login({ onAuth }) {
 
   return (
     <div className="card">
-      <h3 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', textAlign: 'center' }}>Login</h3>
+  <h3 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #2EEAC3 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', textAlign: 'center' }}>Login</h3>
       <label>
         Username
         <input value={username} onChange={(e) => setUsername(e.target.value)} />
@@ -496,7 +504,12 @@ export default function App() {
     return (
       <main className="layout login-layout">
         <header className="login-header">
-          <h1 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Kinnect</h1>
+          <div className="login-brand">
+            <a href="/" style={{ textDecoration: 'none' }}>
+              <h1 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #2EEAC3 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0 }}>Kinnect</h1>
+            </a>
+            <img src="/no-bg-KinnectApp.png" alt="Kinnect" className="app-icon large below-title" />
+          </div>
         </header>
         <Login onAuth={setUser} />
       </main>
@@ -532,6 +545,7 @@ export default function App() {
 
         <Routes>
           <Route path="/profile" element={<Profile user={user} onLogout={handleLogout} onUnitChange={handleUnitChange} unit={unit} stravaConnected={stravaConnected} onConnectionChange={handleStravaConnectionChange} />} />
+          <Route path="/leaderboards" element={<Leaderboards user={user} />} />
           <Route
             path="/"
             element={(
