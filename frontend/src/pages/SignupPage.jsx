@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
+import { API_BASE } from '../config/api';
 
 export default function SignupPage({ onAuth }) {
   const navigate = useNavigate();
@@ -9,7 +10,7 @@ export default function SignupPage({ onAuth }) {
   const [loading, setLoading] = useState(false);
 
   const fetchProfileAndSetUser = async (accessToken) => {
-    const resp = await fetch(`http://localhost:4000/api/profiles/me`, {
+    const resp = await fetch(`${API_BASE}/api/profiles/me`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     });
     const payload = await resp.json();

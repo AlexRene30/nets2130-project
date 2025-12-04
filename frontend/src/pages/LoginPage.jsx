@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { Link, useNavigate } from 'react-router-dom';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api';
 
 export default function LoginPage({ onAuth }) {
   const navigate = useNavigate();

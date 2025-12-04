@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api';
 
 export default function Friends({ user }) {
   const [friends, setFriends] = useState([]);

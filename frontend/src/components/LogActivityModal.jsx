@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api';
 
 const defaultActivity = { type: 'run', title: '', date: '', time: '', distance: 5, distanceUnit: 'km', distanceKm: 5, durationMinutes: 30 };
 
