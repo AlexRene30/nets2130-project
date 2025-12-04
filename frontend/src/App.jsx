@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
@@ -154,7 +154,10 @@ function Login({ onAuth }) {
 }
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [needsProfile, setNeedsProfile] = useState(false);
   const [unit, setUnit] = useState(() => {
     try {
@@ -172,6 +175,11 @@ export default function App() {
     let mounted = true;
     const restore = async () => {
       try {
+        // Check if we're on a redirect from OAuth (has hash or query params from auth)
+        const currentPath = window.location.pathname;
+        const isOAuthRedirect = window.location.hash.includes('access_token') || 
+                                window.location.search.includes('code=');
+        
         // If the OAuth provider redirected back with session info in the URL,
         // getSessionFromUrl will parse and store it. If there's nothing to parse,
         // it will throw or return null depending on SDK; ignore errors.
@@ -224,12 +232,24 @@ export default function App() {
             };
             setNeedsProfile(false);
             setUser(clientUser);
+            
+            // If we just completed OAuth and we're on login/signup page, navigate to dashboard
+            console.log('OAuth check:', { isOAuthRedirect, currentPath });
+            if (isOAuthRedirect && (currentPath === '/login' || currentPath === '/signup')) {
+              console.log('Attempting navigation to dashboard after OAuth');
+              // Use setTimeout to ensure navigation happens after state updates
+              setTimeout(() => {
+                navigate('/', { replace: true });
+              }, 100);
+            }
           } catch (err) {
             console.error('Error restoring profile after session:', err);
           }
         }
       } catch (err) {
         console.error('Error restoring Supabase session:', err);
+      } finally {
+        if (mounted) setIsLoading(false);
       }
     };
     restore();
@@ -294,39 +314,46 @@ export default function App() {
 
 
 
+  // Show loading state while checking session
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: '#0a0e27' }}>
+        <div style={{ textAlign: 'center' }}>
+          <h2 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #2EEAC3 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Loading...</h2>
+        </div>
+      </div>
+    );
+  }
+
   // Show create profile page if user is logged in but profile is incomplete
   if (needsProfile) {
     return (
-      <BrowserRouter>
-        <Routes>
-          <Route path="/create-profile" element={<CreateProfile onProfileComplete={(user) => { setNeedsProfile(false); setUser(user); }} />} />
-          <Route path="*" element={<Navigate to="/create-profile" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <Routes>
+        <Route path="/create-profile" element={<CreateProfile onProfileComplete={(user) => { setNeedsProfile(false); setUser(user); }} />} />
+        <Route path="*" element={<Navigate to="/create-profile" replace />} />
+      </Routes>
     );
   }
 
   if (!user) {
     return (
-      <BrowserRouter>
-        <main className="layout login-layout">
-          <header className="login-header">
-            <div className="login-brand">
-              <a href="/" style={{ textDecoration: 'none' }}>
-                <h1 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #2EEAC3 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0 }}>Kinnect</h1>
-              </a>
-              <img src="/no-bg-KinnectApp.png" alt="Kinnect" className="app-icon large below-title" />
-            </div>
-          </header>
+      <main className="layout login-layout">
+        <header className="login-header">
+          <div className="login-brand">
+            <a href="/" style={{ textDecoration: 'none' }}>
+              <h1 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #2EEAC3 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', margin: 0 }}>Kinnect</h1>
+            </a>
+            <img src="/no-bg-KinnectApp.png" alt="Kinnect" className="app-icon large below-title" />
+          </div>
+        </header>
 
-          <Routes>
-            <Route path="/signup" element={<SignupPage onAuth={setUser} />} />
-            <Route path="/login" element={<LoginPage onAuth={setUser} />} />
-            <Route path="/create-profile" element={<CreateProfile onProfileComplete={(user) => { setNeedsProfile(false); setUser(user); }} />} />
-            <Route path="*" element={<Navigate to="/login" replace />} />
-          </Routes>
+        <Routes>
+          <Route path="/signup" element={<SignupPage onAuth={setUser} />} />
+          <Route path="/login" element={<LoginPage onAuth={setUser} />} />
+          <Route path="/create-profile" element={<CreateProfile onProfileComplete={(user) => { setNeedsProfile(false); setUser(user); }} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
       </main>
-      </BrowserRouter>
     );
   }
 
@@ -340,7 +367,6 @@ export default function App() {
   };
 
   return (
-    <BrowserRouter>
     <main className="layout">
         <Navbar user={user} onLogActivityClick={() => setIsModalOpen(true)} />
 
@@ -371,6 +397,5 @@ export default function App() {
           onLogged={handleActivityLogged}
         />
     </main>
-    </BrowserRouter>
   );
 }
