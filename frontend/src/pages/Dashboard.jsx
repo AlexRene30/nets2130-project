@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
+import { supabase } from '../supabaseClient';
 import StravaBanner from '../components/StravaBanner';
 import StravaActivities from '../components/StravaActivities';
 import LoggedActivities from '../components/LoggedActivities';
@@ -348,13 +349,43 @@ export default function Dashboard({ user, unit, onConnectionChange, activityRefr
   const [leaderboard, setLeaderboard] = useState({ teamLeaderboard: [], cityLeaderboard: [], individualLeaderboard: [] });
   const [mapPoints, setMapPoints] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [currentStreak, setCurrentStreak] = useState(user.streak || 0);
+  const [userPoints, setUserPoints] = useState(user.points || 0);
 
   // Calculate quick stats (dummy data for now - can be enhanced with real data)
   const quickStats = {
     weekDistance: '12 km', // This would come from actual activity data
-    currentStreak: user.streak || 3,
+    currentStreak: currentStreak,
     badges: 4, // This would be calculated from earned badges
   };
+
+  // Fetch current user's streak and points from database
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchUserProfile = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        
+        if (token) {
+          const response = await fetch(`${API_BASE}/api/profiles/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await response.json();
+          
+          if (data.profile) {
+            setCurrentStreak(data.profile.streak || 0);
+            setUserPoints(data.profile.points || 0);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user profile:', error);
+      }
+    };
+
+    fetchUserProfile();
+  }, [user, activityRefreshTrigger]);
 
   useEffect(() => {
     if (!user) return;
@@ -401,7 +432,7 @@ export default function Dashboard({ user, unit, onConnectionChange, activityRefr
         {/* Left Column */}
         <div className="dashboard-left">
           {/* Streaks & Badges above the Activity Map */}
-          <StreaksAndBadges user={user} />
+          <StreaksAndBadges user={{ ...user, streak: currentStreak, points: userPoints }} />
           <ActivityMap mapPoints={mapPoints} teamMembers={teamMembers} />
         </div>
 
