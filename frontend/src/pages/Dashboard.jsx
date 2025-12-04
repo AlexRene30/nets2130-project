@@ -390,6 +390,8 @@ export default function Dashboard({ user, unit, onConnectionChange, activityRefr
   useEffect(() => {
     if (!user) return;
     
+    console.log('[DASHBOARD] User points:', user.points);
+    
     fetch(`${API_BASE}/leaderboard`).then((res) => res.json()).then(setLeaderboard);
     fetch(`${API_BASE}/activity-map`).then((res) => res.json()).then((data) => setMapPoints(data.mapPoints));
     // Fetch team members for the logged-in user's team
@@ -404,6 +406,17 @@ export default function Dashboard({ user, unit, onConnectionChange, activityRefr
       });
   }, [user]);
 
+  // Listen for activity import events to trigger a refresh
+  useEffect(() => {
+    const handleActivityImported = () => {
+      console.log('[DASHBOARD] Activity imported event received');
+      // The parent App component will handle the profile refresh
+      // This is just for logging
+    };
+    window.addEventListener('activityImported', handleActivityImported);
+    return () => window.removeEventListener('activityImported', handleActivityImported);
+  }, []);
+
   return (
     <div className="dashboard-container">
       {/* Hero Section */}
@@ -413,10 +426,13 @@ export default function Dashboard({ user, unit, onConnectionChange, activityRefr
         </h2>
         <div className="quick-stats">
           <div className="stat-pill">
-            This week: {quickStats.weekDistance}
+            Points: {user?.points ?? 0} pts
           </div>
           <div className="stat-pill">
             Current streak: {quickStats.currentStreak} days
+          </div>
+          <div className="stat-pill">
+            This week: {quickStats.weekDistance}
           </div>
           <div className="stat-pill">
             Badges: {quickStats.badges}
