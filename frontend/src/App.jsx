@@ -27,7 +27,7 @@ L.Icon.Default.mergeOptions({
  * Frontend prototype illustrating Kinnect workflows.
  * Uses fetch against the in-memory Express server; could be replaced with mocked data.
  */
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from './config/api';
 
 function Login({ onAuth }) {
   const [email, setEmail] = useState('');

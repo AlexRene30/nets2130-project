@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api';
 
 export default function CreateProfile({ onProfileComplete }) {
   const navigate = useNavigate();

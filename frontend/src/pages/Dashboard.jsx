@@ -5,8 +5,7 @@ import 'leaflet.heat';
 import StravaBanner from '../components/StravaBanner';
 import StravaActivities from '../components/StravaActivities';
 import LoggedActivities from '../components/LoggedActivities';
-
-const API_BASE = 'http://localhost:4000';
+import { API_BASE } from '../config/api';
 
 function Leaderboard({ data }) {
   return (
