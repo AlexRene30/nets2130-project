@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
 import { API_BASE } from '../config/api';
+import { supabase } from '../supabaseClient';
 
 const defaultActivity = { type: 'run', title: '', date: '', time: '', distance: 5, distanceUnit: 'km', distanceKm: 5, durationMinutes: 30 };
 
@@ -53,7 +53,7 @@ function LogActivityModal({ user, isOpen, onClose, onLogged }) {
         time: activity.time,
       };
 
-      const response = await fetch(`${API_BASE}/activities`, {
+      const response = await fetch(`${API_BASE}/api/activities`, {
         method: 'POST',
         headers,
         body: JSON.stringify(payloadBody),
